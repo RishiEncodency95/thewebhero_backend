@@ -2,9 +2,9 @@ import { v2 as cloudinary } from "cloudinary";
 import { env } from "./env";
 import { logger } from "./logger";
 
-export const isCloudinaryConfigured = Boolean(
-  env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET
-);
+// Values copied from .env.example ("your_cloud_name"...) count as not configured.
+const real = (v?: string) => Boolean(v && !v.startsWith("your_"));
+export const isCloudinaryConfigured = real(env.CLOUDINARY_CLOUD_NAME) && real(env.CLOUDINARY_API_KEY) && real(env.CLOUDINARY_API_SECRET);
 
 if (isCloudinaryConfigured) {
   cloudinary.config({
@@ -15,9 +15,7 @@ if (isCloudinaryConfigured) {
   });
   logger.info("Cloudinary configured");
 } else {
-  logger.warn(
-    "Cloudinary credentials missing (CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET) - media uploads will fail until configured."
-  );
+  logger.warn("Cloudinary not configured - media uploads are stored on local disk (./uploads).");
 }
 
 export { cloudinary };

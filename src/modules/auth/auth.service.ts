@@ -40,8 +40,10 @@ export const authService = {
     user.lastLoginAt = new Date();
     await user.save();
 
-    const { accessToken, refreshToken } = await buildTokens(user.id);
-    return { accessToken, refreshToken, user };
+    // buildTokens returns the user with its role populated, which the login
+    // response needs for role name + permissions.
+    const { accessToken, refreshToken, user: withRole } = await buildTokens(user.id);
+    return { accessToken, refreshToken, user: withRole! };
   },
 
   async refresh(refreshToken: string) {

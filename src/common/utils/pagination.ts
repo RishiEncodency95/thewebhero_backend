@@ -12,7 +12,7 @@ export const getPagination = (req: Request): PaginationParams => {
   const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 10));
   const skip = (page - 1) * limit;
 
-  const sortBy = (req.query.sortBy as string) || "createdAt";
+  const sortBy = typeof req.query.sortBy === "string" && /^[A-Za-z][A-Za-z0-9_.]{0,40}$/.test(req.query.sortBy) ? req.query.sortBy : "createdAt";
   const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
 
   return { page, limit, skip, sort: { [sortBy]: sortOrder } };

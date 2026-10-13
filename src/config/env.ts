@@ -7,9 +7,18 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().default(5000),
   CLIENT_URL: z.string().default("http://localhost:3000"),
+  // Public base URL of this API, used to build links to locally stored uploads.
+  PUBLIC_API_URL: z.string().optional(),
   ADMIN_URL: z.string().default("http://localhost:3001"),
 
   MONGO_URI: z.string().min(1, "MONGO_URI is required"),
+
+  // Shared with the website's /api/revalidate route so admin edits go live instantly.
+  REVALIDATE_SECRET: z
+    .string()
+    .optional()
+    .transform((v) => (v ? v : undefined))
+    .pipe(z.string().min(16, "REVALIDATE_SECRET must be at least 16 chars").optional()),
 
   JWT_ACCESS_SECRET: z.string().min(10, "JWT_ACCESS_SECRET must be at least 10 chars"),
   JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
@@ -26,6 +35,12 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().default("TheWebHero <no-reply@thewebhero.com>"),
+  // Where new lead alerts are emailed. Falls back to Settings > contactEmail.
+  LEADS_NOTIFY_EMAIL: z
+    .string()
+    .optional()
+    .transform((v) => (v ? v : undefined))
+    .pipe(z.string().email().optional()),
 
   MAX_UPLOAD_SIZE_MB: z.coerce.number().default(10),
 

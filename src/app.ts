@@ -11,6 +11,7 @@ import { logger } from "./config/logger";
 import { globalRateLimiter } from "./common/middlewares/rateLimiter.middleware";
 import { errorHandler, notFoundHandler } from "./common/middlewares/error.middleware";
 import v1Router from "./routes/v1";
+import { UPLOAD_DIR } from "./modules/media/storage";
 
 const app: Application = express();
 
@@ -32,6 +33,23 @@ app.use(mongoSanitize());
 app.use(
   morgan(isProd ? "combined" : "dev", {
     stream: { write: (message) => logger.info(message.trim()) },
+  })
+);
+
+// Locally stored uploads (when Cloudinary isn't configured). Served with a
+// locked-down CSP so an uploaded SVG can never run script, and a cross-origin
+// resource policy so the website and admin (other origins) can show images.
+app.use(
+  "/uploads",
+  express.static(UPLOAD_DIR, {
+    maxAge: "30d",
+    immutable: true,
+    index: false,
+    setHeaders: (res) => {
+      res.setHeader("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+    },
   })
 );
 

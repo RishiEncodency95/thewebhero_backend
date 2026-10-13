@@ -29,6 +29,8 @@ export const newsletterService = {
     const { page, limit, skip, sort } = getPagination(req);
     const filter: Record<string, unknown> = {};
     if (req.query.isActive !== undefined) filter.isActive = req.query.isActive === "true";
+    const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 100) : "";
+    if (search) filter.email = { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
 
     const [items, total] = await Promise.all([
       Subscriber.find(filter).sort(sort).skip(skip).limit(limit),

@@ -6,3 +6,9 @@ dist/
 .DS_Store
 coverage/
 tsconfig.tsbuildinfo
+
+# local dev database (npm run db:local)
+.local-db/
+
+# Locally stored media uploads
+uploads/

@@ -1,27 +1,32 @@
-// Resource keys map 1:1 to the admin sidebar modules (twh_admin/src/app/dashboard/*)
+// Resource keys map 1:1 to API routes and admin modules. Permissions are "<resource>:<action>".
 export const RESOURCES = [
+  // System
   "users",
   "roles",
   "audit-logs",
   "media",
   "notifications",
+  // Site-wide singletons
   "settings",
+  "company",
   "home-page",
-  "pages",
-  "blog",
-  "portfolio",
-  "case-studies",
+  // SEO
+  "seo-pages",
+  // Website content
   "services",
   "solutions",
-  "industries",
   "technologies",
-  "locations",
+  "industries",
+  "categories",
+  "business-needs",
+  "portfolio",
+  "blog",
   "team",
+  "careers",
   "testimonials",
-  "partners",
-  "awards",
   "faqs",
-  "resources",
+  "locations",
+  // Leads
   "contact-enquiries",
   "quote-requests",
   "support-requests",

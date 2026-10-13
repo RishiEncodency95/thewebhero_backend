@@ -1,6 +1,7 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { Model, Document } from "mongoose";
 import { AnyZodObject, z } from "zod";
+import crypto from "crypto";
 import { asyncHandler } from "../utils/asyncHandler";
 import { ApiResponse } from "../utils/ApiResponse";
 import { ApiError } from "../utils/ApiError";
@@ -10,24 +11,113 @@ import { checkPermission } from "../middlewares/rbac.middleware";
 import { validateBody } from "../middlewares/validate.middleware";
 import { publicFormRateLimiter } from "../middlewares/rateLimiter.middleware";
 import { auditLog } from "../middlewares/auditLogger.middleware";
-import { Resource } from "../../config/constants";
+import { DEFAULT_ROLES, Resource } from "../../config/constants";
+import { env } from "../../config/env";
+import { logger } from "../../config/logger";
+import { sendEmail } from "../utils/sendEmail";
+import { escapeHtml } from "../utils/escapeHtml";
+import { LEAD_STATUSES } from "./leadFields";
+import { Role } from "../../modules/roles/role.model";
+import { User } from "../../modules/users/user.model";
+import { settings } from "../../content/site";
+import { notificationService } from "../../modules/notifications/notification.service";
 
 // Shared shape for lead-capture modules: public form submits, admin manages a
 // status lifecycle (contact-enquiries, quote-requests, support-requests).
 export const leadStatusSchema = z.object({
-  status: z.enum(["new", "in-progress", "resolved", "closed", "spam"]),
+  status: z.enum(LEAD_STATUSES),
 });
 
-export function createLeadService<T extends Document>(model: Model<T>) {
+export const leadUpdateSchema = z
+  .object({
+    status: z.enum(LEAD_STATUSES).optional(),
+    notes: z.string().max(5000).optional(),
+  })
+  .refine((v) => v.status !== undefined || v.notes !== undefined, { message: "Nothing to update" });
+
+interface LeadOptions {
+  resource: Resource;
+  /** Prefix for the human-friendly reference id, e.g. "Q" -> TWH-Q-260412-7KD2. */
+  refPrefix: string;
+  /** Label used in admin notifications and emails, e.g. "quote request". */
+  label: string;
+  /** Fields searched by `?search=`. */
+  searchableFields: string[];
+  /** Name + email of the person who submitted, for notifications. */
+  summarize: (doc: Record<string, unknown>) => { name: string; email: string; headline?: string };
+}
+
+function makeReferenceId(prefix: string) {
+  const d = new Date();
+  const date = `${String(d.getUTCFullYear()).slice(2)}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(
+    d.getUTCDate()
+  ).padStart(2, "0")}`;
+  const rand = crypto.randomBytes(3).toString("base64url").replace(/[-_]/g, "X").toUpperCase().slice(0, 4);
+  return `TWH-${prefix}-${date}-${rand}`;
+}
+
+// Fields that only the server sets - never accepted from the public form.
+const SERVER_ONLY = ["status", "notes", "referenceId", "meta", "honeypot", "pageUrl"];
+
+export function createLeadService<T extends Document>(model: Model<T>, options: LeadOptions) {
+  // Admins who can read this lead type get an in-app notification.
+  async function recipients() {
+    const roles = await Role.find({
+      $or: [{ name: DEFAULT_ROLES.SUPER_ADMIN }, { permissions: `${options.resource}:read` }],
+    }).select("_id");
+    return User.find({ role: { $in: roles.map((r) => r._id) }, isActive: true }).select("_id");
+  }
+
+  async function notify(doc: T) {
+    const plain = doc.toObject() as Record<string, unknown>;
+    const { name, email, headline } = options.summarize(plain);
+    const ref = String(plain.referenceId ?? "");
+    const link = `/dashboard/${options.resource}?id=${String(plain._id)}`;
+    const title = `New ${options.label}`;
+    const message = `${name} (${email})${headline ? ` — ${headline}` : ""}`;
+
+    const users = await recipients();
+    await Promise.all(users.map((u) => notificationService.notify(String(u._id), title, message, link)));
+
+    const site = (await settings.get()) as { notifications?: { leadsEmail?: string }; contact?: { email?: string } };
+    const to = env.LEADS_NOTIFY_EMAIL || site.notifications?.leadsEmail || site.contact?.email;
+    if (to) {
+      const rows = Object.entries(plain)
+        .filter(([k, v]) => !["_id", "__v", "updatedAt", "notes", "status"].includes(k) && v !== undefined && v !== "")
+        .map(([k, v]) => {
+          const value = Array.isArray(v) ? v.join(", ") : typeof v === "object" && v !== null ? JSON.stringify(v) : String(v);
+          return `<tr><td style="padding:4px 12px 4px 0;color:#64748b;vertical-align:top">${escapeHtml(k)}</td><td style="padding:4px 0;color:#0f172a">${escapeHtml(value)}</td></tr>`;
+        })
+        .join("");
+      await sendEmail({
+        to,
+        subject: `${title} ${ref} from ${name}`.slice(0, 200),
+        html: `<h2 style="font-family:sans-serif">${escapeHtml(title)} ${escapeHtml(ref)}</h2><table style="font-family:sans-serif;font-size:14px">${rows}</table>`,
+      });
+    }
+  }
+
   return {
-    async create(data: Partial<T>): Promise<T> {
-      return model.create(data);
+    async create(data: Record<string, unknown>, meta: Record<string, string | undefined>): Promise<T> {
+      const clean = { ...data };
+      for (const key of SERVER_ONLY) delete clean[key];
+      const doc = await model.create({ ...clean, meta, referenceId: makeReferenceId(options.refPrefix) });
+
+      // Notifications must never fail the visitor's submission.
+      notify(doc).catch((err) => logger.error({ err }, `Lead notification failed for ${options.resource}`));
+      return doc;
     },
 
     async getAll(req: Request) {
       const { page, limit, skip, sort } = getPagination(req);
       const filter: Record<string, unknown> = {};
       if (req.query.status) filter.status = req.query.status;
+
+      const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+      if (search) {
+        const safe = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        filter.$or = [...options.searchableFields, "referenceId"].map((f) => ({ [f]: { $regex: safe, $options: "i" } }));
+      }
 
       const [items, total] = await Promise.all([
         model.find(filter).sort(sort).skip(skip).limit(limit),
@@ -36,14 +126,22 @@ export function createLeadService<T extends Document>(model: Model<T>) {
       return { items, meta: buildMeta(total, page, limit) };
     },
 
+    async stats() {
+      const rows = await model.aggregate<{ _id: string; count: number }>([{ $group: { _id: "$status", count: { $sum: 1 } } }]);
+      const byStatus = Object.fromEntries(LEAD_STATUSES.map((s) => [s, 0])) as Record<string, number>;
+      for (const r of rows) byStatus[r._id] = r.count;
+      const total = Object.values(byStatus).reduce((a, b) => a + b, 0);
+      return { total, byStatus };
+    },
+
     async getById(id: string): Promise<T> {
       const doc = await model.findById(id);
       if (!doc) throw ApiError.notFound("Not found");
       return doc;
     },
 
-    async updateStatus(id: string, status: string): Promise<T> {
-      const doc = await model.findByIdAndUpdate(id, { status }, { new: true });
+    async update(id: string, data: { status?: string; notes?: string }): Promise<T> {
+      const doc = await model.findByIdAndUpdate(id, data, { new: true, runValidators: true });
       if (!doc) throw ApiError.notFound("Not found");
       return doc;
     },
@@ -60,8 +158,15 @@ export type LeadService<T extends Document> = ReturnType<typeof createLeadServic
 export function createLeadController<T extends Document>(service: LeadService<T>) {
   return {
     create: asyncHandler(async (req: Request, res: Response) => {
-      const doc = await service.create(req.body);
-      res.status(201).json(new ApiResponse(201, doc, "Submitted successfully"));
+      const doc = await service.create(req.body, {
+        ip: req.ip,
+        userAgent: req.get("user-agent")?.slice(0, 300),
+        pageUrl: typeof req.body.pageUrl === "string" ? req.body.pageUrl : undefined,
+        referrer: req.get("referer")?.slice(0, 500),
+      });
+      const referenceId = (doc as unknown as { referenceId: string }).referenceId;
+      // Only the reference goes back to the public - never the stored record.
+      res.status(201).json(new ApiResponse(201, { referenceId }, "Submitted successfully"));
     }),
 
     getAll: asyncHandler(async (req: Request, res: Response) => {
@@ -69,14 +174,18 @@ export function createLeadController<T extends Document>(service: LeadService<T>
       res.status(200).json(new ApiResponse(200, result));
     }),
 
+    stats: asyncHandler(async (_req: Request, res: Response) => {
+      res.status(200).json(new ApiResponse(200, await service.stats()));
+    }),
+
     getById: asyncHandler(async (req: Request, res: Response) => {
       const doc = await service.getById(req.params.id);
       res.status(200).json(new ApiResponse(200, doc));
     }),
 
-    updateStatus: asyncHandler(async (req: Request, res: Response) => {
-      const doc = await service.updateStatus(req.params.id, req.body.status);
-      res.status(200).json(new ApiResponse(200, doc, "Status updated"));
+    update: asyncHandler(async (req: Request, res: Response) => {
+      const doc = await service.update(req.params.id, req.body);
+      res.status(200).json(new ApiResponse(200, doc, "Updated successfully"));
     }),
 
     remove: asyncHandler(async (req: Request, res: Response) => {
@@ -86,31 +195,55 @@ export function createLeadController<T extends Document>(service: LeadService<T>
   };
 }
 
+// Bots that fill the hidden honeypot get a normal-looking success response,
+// but nothing is stored or notified.
+const honeypotGuard = (prefix: string) => (req: Request, res: Response, next: NextFunction) => {
+  const trap = req.body?.honeypot;
+  if (typeof trap === "string" && trap.trim() !== "") {
+    logger.warn({ ip: req.ip }, "Lead honeypot triggered - submission dropped");
+    res.status(201).json(new ApiResponse(201, { referenceId: makeReferenceId(prefix) }, "Submitted successfully"));
+    return;
+  }
+  next();
+};
+
 interface LeadRouterOptions {
   resource: Resource;
+  refPrefix: string;
   createSchema: AnyZodObject;
 }
 
 export function createLeadRouter<T extends Document>(
   controller: ReturnType<typeof createLeadController<T>>,
-  { resource, createSchema }: LeadRouterOptions
+  { resource, refPrefix, createSchema }: LeadRouterOptions
 ) {
   const router = Router();
 
   // Public - anyone on the website can submit this form.
-  router.post("/", publicFormRateLimiter, validateBody(createSchema), controller.create);
+  router.post("/", publicFormRateLimiter, honeypotGuard(refPrefix), validateBody(createSchema), controller.create);
 
   // Admin-only management.
   router.get("/", authenticate, checkPermission(resource, "read"), controller.getAll);
+  router.get("/stats", authenticate, checkPermission(resource, "read"), controller.stats);
   router.get("/:id", authenticate, checkPermission(resource, "read"), controller.getById);
 
+  // Kept for backwards compatibility; PATCH /:id is the general update.
   router.put(
     "/:id/status",
     authenticate,
     checkPermission(resource, "update"),
     validateBody(leadStatusSchema),
     auditLog(resource, "update"),
-    controller.updateStatus
+    controller.update
+  );
+
+  router.patch(
+    "/:id",
+    authenticate,
+    checkPermission(resource, "update"),
+    validateBody(leadUpdateSchema),
+    auditLog(resource, "update"),
+    controller.update
   );
 
   router.delete(

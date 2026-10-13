@@ -1,5 +1,6 @@
 import { Role, IRole } from "./role.model";
 import { User } from "../users/user.model";
+import { DEFAULT_ROLES } from "../../config/constants";
 import { ApiError } from "../../common/utils/ApiError";
 import { CreateRoleInput, UpdateRoleInput } from "./role.validation";
 import { RESOURCES, ACTIONS } from "../../config/constants";
@@ -24,7 +25,10 @@ export const roleService = {
   async update(id: string, data: UpdateRoleInput): Promise<IRole> {
     const role = await Role.findById(id);
     if (!role) throw ApiError.notFound("Role not found");
-    if (role.isSystem) throw ApiError.forbidden("System roles cannot be modified");
+    // Super admin always has every permission; other built-in roles can be
+    // re-permissioned but keep their name so seeds and checks still find them.
+    if (role.name === DEFAULT_ROLES.SUPER_ADMIN) throw ApiError.forbidden("The super admin role cannot be modified");
+    if (role.isSystem && data.name && data.name.toLowerCase() !== role.name) throw ApiError.forbidden("Built-in roles cannot be renamed");
 
     Object.assign(role, data);
     await role.save();

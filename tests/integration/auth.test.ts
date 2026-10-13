@@ -42,6 +42,9 @@ describe("Auth flow", () => {
     expect(res.status).toBe(200);
     expect(res.body.data.accessToken).toBeDefined();
     expect(res.body.data.user.email).toBe(EMAIL);
+    // The admin UI needs role + permissions straight from the login response.
+    expect(res.body.data.user.role).toBe("super-admin");
+    expect(res.body.data.user.permissions).toEqual(["users:read"]);
     expect(res.headers["set-cookie"]).toBeDefined();
   });
 

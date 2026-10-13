@@ -1,9 +1,13 @@
 import rateLimit from "express-rate-limit";
 import { env } from "../../config/env";
+import { isTrustedSiteRequest } from "../utils/siteSecret";
 
 export const globalRateLimiter = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
   max: env.RATE_LIMIT_MAX,
+  // The website renders hundreds of pages from one server IP; it authenticates
+  // with the shared site secret instead of being throttled.
+  skip: isTrustedSiteRequest,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: "Too many requests, please try again later." },
