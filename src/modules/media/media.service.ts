@@ -3,6 +3,7 @@ import { safeFolder, storage } from "./storage";
 import { ApiError } from "../../common/utils/ApiError";
 import { getPagination, buildMeta } from "../../common/utils/pagination";
 import { Request } from "express";
+import { replaceMediaUrl } from "../../cms/mediaCleanup";
 
 export const mediaService = {
   async save(file: Express.Multer.File, uploadedBy: string, folderInput?: string): Promise<IMedia> {
@@ -59,6 +60,7 @@ export const mediaService = {
 
     const oldPublicId = media.publicId;
     const oldResourceType = media.resourceType;
+    const oldUrl = media.url;
 
     const result = await storage.put(file, safeFolder(media.folder));
 
@@ -71,6 +73,8 @@ export const mediaService = {
     media.size = file.size;
     await media.save();
 
+    // Pages that used the old URL now show the new file.
+    await replaceMediaUrl(oldUrl, result.url);
     await storage.remove(oldPublicId, oldResourceType);
 
     return media;

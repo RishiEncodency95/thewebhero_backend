@@ -12,6 +12,7 @@ import { buildDefinition } from "./mongoose";
 import { buildValidator } from "./validation";
 import { contentRegistry } from "./registry";
 import { revalidateFrontend } from "./revalidate";
+import { cleanupReplacedMedia } from "./mediaCleanup";
 
 export interface SingletonConfig {
   resource: Resource;
@@ -50,9 +51,11 @@ export function defineSingleton<T extends object = Record<string, unknown>>(conf
   const write = asyncHandler(async (req: Request, res: Response) => {
     const doc = await Model.findOne({ key: "main" });
     const target = doc ?? new Model({ key: "main" });
+    const before = doc?.toObject() ?? null;
     target.set(req.body);
     await target.save();
     revalidateFrontend([resource]);
+    await cleanupReplacedMedia(before, target.toObject());
     const data = target.toObject() as Record<string, unknown>;
     delete data.key;
     res.status(200).json(new ApiResponse(200, data, `${config.label} saved`));

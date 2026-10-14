@@ -16,6 +16,7 @@ import { buildDefinition } from "./mongoose";
 import { buildValidator } from "./validation";
 import { contentRegistry, ContentTypeDefinition, SitemapChangefreq } from "./registry";
 import { revalidateFrontend } from "./revalidate";
+import { cleanupReplacedMedia } from "./mediaCleanup";
 
 type Doc = Record<string, unknown>;
 
@@ -247,7 +248,9 @@ export function defineContentModule(config: ContentModuleConfig) {
     const before = doc.toObject();
     doc.set(req.body);
     await doc.save();
-    revalidateFrontend([...tagsFor(before), ...tagsFor(doc.toObject())]);
+    const after = doc.toObject();
+    revalidateFrontend([...tagsFor(before), ...tagsFor(after)]);
+    await cleanupReplacedMedia(before, after);
     res.status(200).json(new ApiResponse(200, doc, `${config.label} updated`));
   });
 
@@ -255,6 +258,7 @@ export function defineContentModule(config: ContentModuleConfig) {
     const doc = await Model.findByIdAndDelete(req.params.id).lean<Doc>();
     if (!doc) throw ApiError.notFound(`${config.label} not found`);
     revalidateFrontend(tagsFor(doc));
+    await cleanupReplacedMedia(doc, null);
     res.status(200).json(new ApiResponse(200, null, `${config.label} deleted`));
   });
 

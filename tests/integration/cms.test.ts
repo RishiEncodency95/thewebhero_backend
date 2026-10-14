@@ -2,15 +2,18 @@ import request from "supertest";
 import app from "../../src/app";
 import { Role } from "../../src/modules/roles/role.model";
 import { User } from "../../src/modules/users/user.model";
+import { signAccessToken } from "../../src/common/utils/tokens";
 
 const EMAIL = "cms-admin@thewebhero.com";
 const PASSWORD = "SuperSecret123";
 
+// Signs the token directly: logging in for every test would trip the
+// login rate limiter (10 attempts per window) - auth.test.ts covers login.
 async function adminAuth() {
   const role = await Role.create({ name: "super-admin", permissions: [], isSystem: true });
-  await User.create({ name: "CMS Admin", email: EMAIL, password: PASSWORD, role: role._id });
-  const res = await request(app).post("/api/v1/auth/login").send({ email: EMAIL, password: PASSWORD });
-  return { Authorization: `Bearer ${res.body.data.accessToken}` };
+  const user = await User.create({ name: "CMS Admin", email: EMAIL, password: PASSWORD, role: role._id });
+  const token = signAccessToken({ sub: user.id, email: EMAIL, role: role.name, permissions: [] });
+  return { Authorization: `Bearer ${token}` };
 }
 
 const service = (title: string, extra: Record<string, unknown> = {}) => ({
@@ -183,5 +186,43 @@ describe("Media uploads (local storage)", () => {
 
     expect((await request(app).delete(`/api/v1/media/${up.body.data._id}`).set(auth)).status).toBe(200);
     expect((await request(app).get(path)).status).toBe(404);
+  });
+});
+
+describe("Media cleanup when content changes", () => {
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+  const upload = async (auth: Record<string, string>) => {
+    const res = await request(app).post("/api/v1/media").set(auth).field("folder", "test").attach("file", png, "img.png");
+    expect(res.status).toBe(201);
+    return { id: res.body.data._id as string, url: res.body.data.url as string, path: new URL(res.body.data.url).pathname };
+  };
+  const exists = async (path: string) => (await request(app).get(path)).status === 200;
+
+  it("deletes replaced, cleared and orphaned files but keeps shared ones", async () => {
+    const auth = await adminAuth();
+    const [a, b, c] = [await upload(auth), await upload(auth), await upload(auth)];
+
+    const s1 = (await request(app).post("/api/v1/services").set(auth).send(service("One", { seo: { ogImage: a.url } }))).body.data;
+    const s2 = (await request(app).post("/api/v1/services").set(auth).send(service("Two", { seo: { ogImage: c.url } }))).body.data;
+    const s3 = (await request(app).post("/api/v1/services").set(auth).send(service("Three", { seo: { ogImage: c.url } }))).body.data;
+
+    // Changing an image removes the old file from storage and the media library.
+    await request(app).put(`/api/v1/services/${s1._id}`).set(auth).send({ seo: { ogImage: b.url } }).expect(200);
+    expect(await exists(a.path)).toBe(false);
+    expect((await request(app).get("/api/v1/media").set(auth)).body.data.items.map((m: { _id: string }) => m._id)).not.toContain(a.id);
+
+    // A file still used by another record survives; it goes with the last user.
+    await request(app).delete(`/api/v1/services/${s2._id}`).set(auth).expect(200);
+    expect(await exists(c.path)).toBe(true);
+    await request(app).delete(`/api/v1/services/${s3._id}`).set(auth).expect(200);
+    expect(await exists(c.path)).toBe(false);
+
+    // Replacing a media file deletes the old one and repoints the content.
+    const replaced = await request(app).put(`/api/v1/media/${b.id}`).set(auth).attach("file", png, "new.png");
+    expect(replaced.status).toBe(200);
+    expect(await exists(b.path)).toBe(false);
+    const fresh = await request(app).get(`/api/v1/services/${s1._id}`).set(auth).query({ populate: "false" });
+    expect(fresh.body.data.seo.ogImage).toBe(replaced.body.data.url);
+    expect(await exists(new URL(replaced.body.data.url).pathname)).toBe(true);
   });
 });
