@@ -65,6 +65,26 @@ async function seed() {
     logger.warn("Change this password immediately after first login.");
   }
 
+  // Extra users from SEED_USERS="email|password|Name|role;..." - existing ones are left untouched.
+  for (const entry of (env.SEED_USERS ?? "").split(";").map((e) => e.trim()).filter(Boolean)) {
+    const [email, password, name, roleName = DEFAULT_ROLES.SUPER_ADMIN] = entry.split("|").map((p) => p.trim());
+    if (!email || !password) {
+      logger.warn(`Skipping SEED_USERS entry without email/password: ${email ?? "?"}`);
+      continue;
+    }
+    const role = await Role.findOne({ name: roleName.toLowerCase() });
+    if (!role) {
+      logger.warn(`Skipping ${email}: unknown role "${roleName}"`);
+      continue;
+    }
+    if (await User.exists({ email: email.toLowerCase() })) {
+      logger.info(`User already exists: ${email}`);
+      continue;
+    }
+    await User.create({ name: name || email.split("@")[0], email: email.toLowerCase(), password, role: role._id });
+    logger.info(`User created -> ${email} (${role.name})`);
+  }
+
   await disconnectDB();
   process.exit(0);
 }

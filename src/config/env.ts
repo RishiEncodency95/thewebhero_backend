@@ -58,6 +58,8 @@ const envSchema = z.object({
   SEED_ADMIN_EMAIL: z.string().email().default("admin@thewebhero.com"),
   SEED_ADMIN_PASSWORD: z.string().min(6).default("ChangeMe@123"),
   SEED_ADMIN_NAME: z.string().default("Super Admin"),
+  // Extra admin users: "email|password|Name|role" separated by ";" (role defaults to super-admin).
+  SEED_USERS: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
