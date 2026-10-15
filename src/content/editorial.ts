@@ -1,7 +1,7 @@
 // Portfolio, blog, team, careers, testimonials, FAQs and locations.
 // Fields mirror twh_frontend/app/types/*.ts.
 import { defineContentModule } from "../cms/contentModule";
-import { f, faqItem, processStepItem } from "../cms/fields";
+import { f, faqItem, processStepItem, titleDescriptionItem } from "../cms/fields";
 
 const B = "Basics";
 const C = "Content";
@@ -246,10 +246,19 @@ export const locations = defineContentModule({
   publicPath: (d) => `/locations/${d.type}/${d.slug}`,
   sitemap: { priority: 0.6, changefreq: "monthly" },
   fields: {
-    name: f.text({ label: "Name", required: true, max: 120 }),
-    slug: f.slug({ label: "URL slug", from: "name" }),
-    type: f.select({ label: "Type", required: true, options: [{ value: "city", label: "City / area" }, { value: "country", label: "Country" }] }),
-    intro: f.textarea({ label: "Custom intro", max: 2000, help: "Optional. Replaces the default intro paragraph." }),
+    name: f.text({ label: "Name", required: true, max: 120, group: "Basics" }),
+    slug: f.slug({ label: "URL slug", from: "name", group: "Basics" }),
+    type: f.select({ label: "Type", required: true, group: "Basics", options: [{ value: "city", label: "City / area" }, { value: "country", label: "Country" }] }),
+    intro: f.textarea({ label: "Intro", max: 2000, group: "Basics", help: "Hero paragraph. Unique text for this location helps it rank." }),
+    sections: f.list({
+      label: "Page sections",
+      group: "Content",
+      itemLabel: "title",
+      help: "Unique content about working with businesses in this location (2-4 sections).",
+      of: titleDescriptionItem("Heading"),
+    }),
+    highlights: f.list({ label: "Why choose us here", group: "Content", itemLabel: "title", help: "4 short points shown in the Why Choose Us block.", of: titleDescriptionItem() }),
+    faqs: f.list({ label: "FAQs", group: "Content", itemLabel: "question", of: faqItem }),
     seo: f.seo(),
   },
 });

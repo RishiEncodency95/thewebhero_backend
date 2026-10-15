@@ -15,7 +15,9 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand",
     "db:local": "tsx scripts/local-mongo.ts",
-    "import:content": "tsx scripts/import-site-content.ts"
+    "import:content": "tsx scripts/import-site-content.ts",
+    "seo:optimize": "tsx scripts/seo-optimize.ts",
+    "locations:content": "tsx scripts/locations-content.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

@@ -92,7 +92,7 @@ export const settings = defineSingleton({
     titleTemplate: f.text({ label: "Title template", max: 80, group: "SEO defaults", help: 'Use %s for the page title, e.g. "%s | TheWebHero"' }),
     defaultTitle: f.text({ label: "Default title", max: 120, group: "SEO defaults" }),
     defaultDescription: f.textarea({ label: "Default description", max: 320, rows: 3, group: "SEO defaults" }),
-    defaultOgImage: f.image({ label: "Default social image", group: "SEO defaults", help: "1200 × 630 px" }),
+    defaultOgImage: f.image({ label: "Home page social image", group: "SEO defaults", help: "1200 × 630 px. Other pages without their own image get a branded image generated from their title." }),
     twitterHandle: f.text({ label: "X / Twitter handle", max: 40, group: "SEO defaults", help: "e.g. @thewebhero" }),
     verification: f.object({
       label: "Search console verification",
