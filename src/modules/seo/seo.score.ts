@@ -11,7 +11,12 @@ export interface SeoInput {
 export const TITLE_RANGE = [30, 60] as const;
 export const DESCRIPTION_RANGE = [110, 160] as const;
 
-export const keywordSlug = (kw: string) => kw.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+/** Letters and digits only, so "Next.js 15", "nextjs 15" and "nextjs-15" all match. */
+const matchKey = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/** True when `text` contains the keyword, ignoring case, spaces and punctuation. */
+export const hasKeyword = (text: string, kw: string) => matchKey(text).includes(matchKey(kw));
 
 /** Problems that keep a page below 100; empty means a perfect score. */
 export function seoProblems({ seo = {}, title: fallbackTitle = "", summary = "", slug }: SeoInput): string[] {
@@ -29,9 +34,9 @@ export function seoProblems({ seo = {}, title: fallbackTitle = "", summary = "",
   if (!kw) {
     problems.push("no focus keyword");
   } else {
-    if (!title.toLowerCase().includes(kw)) problems.push(`focus keyword "${kw}" is not in the title`);
-    if (!description.toLowerCase().includes(kw)) problems.push(`focus keyword "${kw}" is not in the description`);
-    if (slug !== undefined && !slug.includes(keywordSlug(kw))) problems.push(`focus keyword "${kw}" does not match the URL slug "${slug}"`);
+    if (!hasKeyword(title, kw)) problems.push(`focus keyword "${kw}" is not in the title`);
+    if (!hasKeyword(description, kw)) problems.push(`focus keyword "${kw}" is not in the description`);
+    if (slug !== undefined && !hasKeyword(slug, kw)) problems.push(`focus keyword "${kw}" does not match the URL slug "${slug}"`);
   }
   return problems;
 }

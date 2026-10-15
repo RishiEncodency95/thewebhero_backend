@@ -4,7 +4,7 @@ import { env } from "../../config/env";
 import { logger } from "../../config/logger";
 import { ApiError } from "../../common/utils/ApiError";
 import { SeoContext, SeoSuggestion } from "./seo.types";
-import { DESCRIPTION_RANGE, keywordSlug, seoProblems, TITLE_RANGE } from "./seo.score";
+import { DESCRIPTION_RANGE, hasKeyword, seoProblems, TITLE_RANGE } from "./seo.score";
 
 const OPENAI_MODEL = "gpt-5-mini";
 const GEMINI_MODEL = "gemini-2.5-flash";
@@ -24,7 +24,7 @@ ${ctx.body.slice(0, 4000) || "(no body text - infer from the title)"}
 Write metadata that ranks for what a real customer would search and earns the click.
 Rules (all are checked automatically - break one and the answer is rejected):
 - "focusKeyword": the main search phrase for this page, 2-5 words, lowercase.${ctx.slug ? ` It MUST match the URL slug: written with hyphens it has to appear inside "${ctx.slug}" (e.g. slug "react-development" -> "react development").` : ""}
-- "seoTitle": ${TITLE_RANGE[0] + 15}-${TITLE_RANGE[1]} characters, starts with or contains the exact focus keyword, written in Title Case, ends with " | TheWebHero" when it fits. No ALL CAPS, no keyword stuffing.
+- "seoTitle": ${TITLE_RANGE[0] + 15}-${TITLE_RANGE[1]} characters, starts with or contains the exact focus keyword, written in Title Case, ends with " | TheWebHero" when it fits. Keep proper product spelling (Next.js, Node.js, iOS) even when the keyword is written without punctuation. No ALL CAPS, no keyword stuffing.
 - "seoDescription": ${DESCRIPTION_RANGE[0] + 30}-${DESCRIPTION_RANGE[1] - 2} characters, contains the exact focus keyword once, states the benefit and ends with a call to action.
 - "keywords": 5-8 related lowercase search phrases (long-tail, include location variants when relevant).
 - "ogImageAlt": max 120 characters describing a share image for this page.
@@ -109,7 +109,7 @@ export async function generateSeoSuggestion(ctx: SeoContext): Promise<SeoSuggest
     }
 
     // A slug-based keyword always satisfies the URL rule - use it if the model keeps missing.
-    if (ctx.slug && attempt === MAX_ATTEMPTS && suggestion.focusKeyword && !ctx.slug.includes(keywordSlug(suggestion.focusKeyword))) {
+    if (ctx.slug && attempt === MAX_ATTEMPTS && suggestion.focusKeyword && !hasKeyword(ctx.slug, suggestion.focusKeyword)) {
       suggestion.focusKeyword = ctx.slug.replace(/-\d+$/, "").replace(/-/g, " ");
     }
 
