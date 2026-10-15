@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import express, { Application } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -53,10 +54,18 @@ app.use(
   })
 );
 
+// Fail fast while the database is unreachable instead of letting every
+// request hang until Mongoose gives up (~30s); clients fall back immediately.
+app.use("/api/v1", (_req, res, next) => {
+  if (mongoose.connection.readyState === 1) return next();
+  res.status(503).json({ success: false, message: "Database unavailable, please try again shortly." });
+});
+
 app.use("/api/v1", globalRateLimiter, v1Router);
 
 app.get("/health", (_req, res) => {
-  res.status(200).json({ success: true, message: "TheWebHero API is running" });
+  const db = mongoose.connection.readyState === 1 ? "connected" : "unavailable";
+  res.status(db === "connected" ? 200 : 503).json({ success: db === "connected", message: "TheWebHero API is running", db });
 });
 
 app.use(notFoundHandler);

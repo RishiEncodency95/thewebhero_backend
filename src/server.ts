@@ -1,10 +1,11 @@
 import app from "./app";
 import { env } from "./config/env";
-import { connectDB } from "./config/db";
+import { connectDBWithRetry } from "./config/db";
 import { logger } from "./config/logger";
 
 const start = async (): Promise<void> => {
-  await connectDB();
+  // Listen right away; API routes answer 503 until the database is reachable.
+  void connectDBWithRetry();
 
   const server = app.listen(env.PORT, () => {
     logger.info(`Server running on http://localhost:${env.PORT} [${env.NODE_ENV}]`);
