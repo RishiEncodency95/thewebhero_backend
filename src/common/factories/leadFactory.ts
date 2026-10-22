@@ -79,7 +79,11 @@ export function createLeadService<T extends Document>(model: Model<T>, options: 
     const users = await recipients();
     await Promise.all(users.map((u) => notificationService.notify(String(u._id), title, message, link)));
 
-    const site = (await settings.get()) as { notifications?: { leadsEmail?: string }; contact?: { email?: string } };
+    const site = (await settings.get()) as {
+      siteName?: string;
+      notifications?: { leadsEmail?: string };
+      contact?: { email?: string; phone?: string; whatsapp?: string };
+    };
     const to = env.LEADS_NOTIFY_EMAIL || site.notifications?.leadsEmail || site.contact?.email;
     if (to) {
       const rows = Object.entries(plain)
@@ -93,6 +97,28 @@ export function createLeadService<T extends Document>(model: Model<T>, options: 
         to,
         subject: `${title} ${ref} from ${name}`.slice(0, 200),
         html: `<h2 style="font-family:sans-serif">${escapeHtml(title)} ${escapeHtml(ref)}</h2><table style="font-family:sans-serif;font-size:14px">${rows}</table>`,
+      });
+    }
+
+    // Confirmation to the visitor, so they know the request arrived and how to reach us.
+    if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      const brand = site.siteName || "TheWebHero";
+      const c = site.contact ?? {};
+      const reach = [
+        c.phone && `Call: <a href="tel:${escapeHtml(c.phone.replace(/[^\d+]/g, ""))}">${escapeHtml(c.phone)}</a>`,
+        c.whatsapp && `WhatsApp: <a href="https://wa.me/${escapeHtml(c.whatsapp.replace(/\D/g, ""))}">chat with us</a>`,
+        c.email && `Email: <a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a>`,
+      ].filter(Boolean);
+      await sendEmail({
+        to: email,
+        subject: `We received your ${options.label}${ref ? ` (${ref})` : ""} - ${brand}`.slice(0, 200),
+        html: `<div style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#0f172a">
+<p>Hi ${escapeHtml(name || "there")},</p>
+<p>Thank you for contacting ${escapeHtml(brand)}. We have received your ${escapeHtml(options.label)} and our team will get back to you within 24 hours.</p>
+${ref ? `<p>Your reference ID: <strong>${escapeHtml(ref)}</strong></p>` : ""}
+${reach.length ? `<p>Need a quicker answer?<br>${reach.join("<br>")}</p>` : ""}
+<p>Regards,<br>Team ${escapeHtml(brand)}</p>
+</div>`,
       });
     }
   }

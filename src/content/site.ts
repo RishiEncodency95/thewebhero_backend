@@ -67,6 +67,8 @@ const contactFields = {
   phone: f.text({ label: "Phone (display)", max: 40 }),
   whatsapp: f.text({ label: "WhatsApp number", max: 20, help: "Digits with country code, e.g. 919876543210" }),
   hours: f.text({ label: "Business hours", max: 80 }),
+  mapUrl: f.url({ label: "Google Maps link", help: "Share link of your Google Maps / Business Profile pin. Used for the \"Get directions\" buttons." }),
+  mapEmbedUrl: f.url({ label: "Google Maps embed URL", help: "Optional. Google Maps → Share → Embed a map → copy only the src=\"…\" link. Left empty, the map is drawn from the address." }),
   address: f.object({
     label: "Address",
     of: {
@@ -83,7 +85,7 @@ export const settings = defineSingleton({
   resource: "settings",
   modelName: "SiteSettings",
   label: "Site settings",
-  description: "Brand, global SEO defaults, analytics, contact details and social profiles.",
+  description: "Brand, global SEO defaults and analytics. Phone, email, map and social links are under Site & SEO → Contact & Social.",
   privateFields: ["notifications"],
   fields: {
     siteName: f.text({ label: "Site name", max: 80, group: "Brand" }),
@@ -108,7 +110,17 @@ export const settings = defineSingleton({
     social: f.object({
       label: "Social profiles",
       group: "Contact",
-      of: { linkedin: f.url("LinkedIn"), twitter: f.url("X / Twitter"), facebook: f.url("Facebook"), instagram: f.url("Instagram"), youtube: f.url("YouTube") },
+      of: {
+        linkedin: f.url("LinkedIn"),
+        twitter: f.url("X / Twitter"),
+        facebook: f.url("Facebook"),
+        instagram: f.url("Instagram"),
+        youtube: f.url("YouTube"),
+        github: f.url("GitHub"),
+        pinterest: f.url("Pinterest"),
+        threads: f.url("Threads"),
+        googleBusiness: f.url({ label: "Google Business Profile", help: "Your Google reviews page. Shown as a \"Review us on Google\" link." }),
+      },
     }),
     organization: f.object({
       label: "Organization (schema.org)",
