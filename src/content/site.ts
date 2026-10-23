@@ -2,7 +2,7 @@
 import { Request, Response } from "express";
 import { defineContentModule } from "../cms/contentModule";
 import { defineSingleton } from "../cms/singleton";
-import { f } from "../cms/fields";
+import { f, type FieldMap } from "../cms/fields";
 import { asyncHandler } from "../common/utils/asyncHandler";
 import { ApiResponse } from "../common/utils/ApiResponse";
 import { ApiError } from "../common/utils/ApiError";
@@ -174,11 +174,26 @@ export const company = defineSingleton({
   },
 });
 
+// Building blocks for the home page sections.
+const sectionHeading = (extra: FieldMap = {}): FieldMap => ({
+  eyebrow: f.text({ label: "Small label above the heading", max: 60 }),
+  title: f.text({ label: "Heading", max: 140, help: "Wrap the coloured words in *stars*, e.g. Transforming Ideas Into *Digital Reality.*" }),
+  description: f.textarea({ label: "Description", max: 600, rows: 3 }),
+  buttonLabel: f.text({ label: "Button text", max: 40, help: "Leave empty to hide the button." }),
+  buttonHref: f.text({ label: "Button link", max: 200, help: "e.g. /services or /get-a-quote" }),
+  ...extra,
+});
+const cardText = {
+  title: f.text({ label: "Title", required: true, max: 100 }),
+  description: f.textarea({ label: "Description", max: 300, rows: 2 }),
+};
+const cardLink = f.text({ label: "Link", max: 200, help: "Page the card opens, e.g. /services/web-development" });
+
 export const homePage = defineSingleton({
   resource: "home-page",
   modelName: "HomePage",
   label: "Home page",
-  description: "Hero and headline numbers on the home page. Other sections come from Services, Portfolio, Testimonials, FAQs and Blog.",
+  description: "Every section of the home page: text, cards, links and pictures. Cards can be added, edited, removed and reordered; colours and icons follow the card order. Projects, testimonials, blog posts and FAQs come from their own sections.",
   fields: {
     hero: f.object({
       label: "Hero",
@@ -200,6 +215,84 @@ export const homePage = defineSingleton({
       itemLabel: "label",
       max: 6,
       of: { value: f.text({ label: "Value", required: true, max: 20, help: 'e.g. "50+"' }), label: f.text({ label: "Label", required: true, max: 60 }) },
+    }),
+    about: f.object({
+      label: "About section",
+      group: "About",
+      of: sectionHeading({
+        image: f.image({ label: "Photo", help: "Shown in the frame; clicking it plays the video." }),
+        videoUrl: f.url({ label: "Video URL (.mp4)" }),
+        features: f.list({ label: "Feature cards", itemLabel: "title", max: 4, of: cardText }),
+      }),
+    }),
+    services: f.object({
+      label: "Services section",
+      group: "Services",
+      of: sectionHeading({
+        items: f.list({
+          label: "Service cards",
+          itemLabel: "title",
+          max: 20,
+          of: {
+            title: f.text({ label: "Title", required: true, max: 100 }),
+            link: cardLink,
+            tag: f.text({ label: "Label on the photo", max: 60 }),
+            image: f.image({ label: "Photo", help: "Leave empty to use the built-in picture for this service." }),
+          },
+        }),
+      }),
+    }),
+    featured: f.object({
+      label: "Featured service (IT support)",
+      group: "Featured service",
+      of: sectionHeading({ points: f.list({ label: "Points", itemLabel: "title", max: 8, of: cardText }) }),
+    }),
+    solutions: f.object({
+      label: "Solutions section",
+      group: "Solutions",
+      of: sectionHeading({ items: f.list({ label: "Solution cards", itemLabel: "title", max: 12, of: { ...cardText, link: cardLink } }) }),
+    }),
+    industries: f.object({
+      label: "Industries section",
+      group: "Industries",
+      of: sectionHeading({
+        items: f.list({ label: "Industry cards", itemLabel: "title", max: 20, of: { ...cardText, link: cardLink, image: f.image({ label: "Photo" }) } }),
+      }),
+    }),
+    technologies: f.object({ label: "Technologies section", group: "Technologies & Projects", of: sectionHeading() }),
+    projects: f.object({
+      label: "Featured projects section",
+      group: "Technologies & Projects",
+      help: "The projects themselves come from Portfolio (featured first).",
+      of: sectionHeading(),
+    }),
+    process: f.object({
+      label: "Process section",
+      group: "Process",
+      of: sectionHeading({
+        steps: f.list({ label: "Steps", itemLabel: "title", max: 8, of: { ...cardText, tag: f.text({ label: "Tag", max: 40 }) } }),
+      }),
+    }),
+    why: f.object({
+      label: "Why choose us",
+      group: "Why us & Testimonials",
+      of: sectionHeading({ items: f.list({ label: "Cards", itemLabel: "title", max: 4, of: cardText }) }),
+    }),
+    testimonials: f.object({
+      label: "Testimonials heading",
+      group: "Why us & Testimonials",
+      help: "The quotes come from Testimonials (published only).",
+      of: sectionHeading(),
+    }),
+    insights: f.object({ label: "Latest articles heading", group: "Blog & FAQ", help: "Articles come from Blog.", of: sectionHeading() }),
+    faq: f.object({ label: "FAQ heading", group: "Blog & FAQ", help: "Questions come from FAQs (Page = Home).", of: sectionHeading() }),
+    cta: f.object({
+      label: "Call to action banner",
+      group: "Call to action",
+      of: sectionHeading({
+        secondaryLabel: f.text({ label: "Second button text", max: 40 }),
+        secondaryHref: f.text({ label: "Second button link", max: 200 }),
+      }),
     }),
   },
 });
