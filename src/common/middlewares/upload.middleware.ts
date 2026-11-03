@@ -9,6 +9,9 @@ const ALLOWED_MIME = [
   "image/webp",
   "image/svg+xml",
   "image/gif",
+  "image/avif",
+  "video/mp4",
+  "video/webm",
   "application/pdf",
 ];
 

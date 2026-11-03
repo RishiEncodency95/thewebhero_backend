@@ -90,7 +90,8 @@ export const settings = defineSingleton({
   fields: {
     siteName: f.text({ label: "Site name", max: 80, group: "Brand" }),
     tagline: f.text({ label: "Tagline", max: 120, group: "Brand" }),
-    logo: f.image({ label: "Logo", group: "Brand" }),
+    logo: f.image({ label: "Logo", group: "Brand", help: "Wide logo for the header and footer." }),
+    logoIcon: f.image({ label: "Logo icon", group: "Brand", help: "Square logo mark, shown on the home page." }),
     titleTemplate: f.text({ label: "Title template", max: 80, group: "SEO defaults", help: 'Use %s for the page title, e.g. "%s | TheWebHero"' }),
     defaultTitle: f.text({ label: "Default title", max: 120, group: "SEO defaults" }),
     defaultDescription: f.textarea({ label: "Default description", max: 320, rows: 3, group: "SEO defaults" }),
@@ -126,6 +127,23 @@ export const settings = defineSingleton({
       label: "Organization (schema.org)",
       group: "Brand",
       of: { legalName: f.text("Legal name"), founded: f.text({ label: "Founded (year)", max: 4 }), description: f.textarea("Description") },
+    }),
+    pageImages: f.object({
+      label: "Page pictures",
+      group: "Page pictures",
+      help: "Artwork at the top of these pages. Leave one empty to use the built-in picture.",
+      of: {
+        company: f.image("Company overview (/company)"),
+        about: f.image("About us"),
+        whyUs: f.image("Why choose us"),
+        process: f.image("Our process"),
+        culture: f.image("Culture"),
+        team: f.image("Team"),
+        careers: f.image("Careers"),
+        blog: f.image("Blog"),
+        getAQuote: f.image("Get a quote"),
+        faq: f.image({ label: "FAQ artwork", help: "Next to the FAQs on service, solution, technology and industry pages." }),
+      },
     }),
     notifications: f.object({
       label: "Notifications",
@@ -245,7 +263,10 @@ export const homePage = defineSingleton({
     featured: f.object({
       label: "Featured service (IT support)",
       group: "Featured service",
-      of: sectionHeading({ points: f.list({ label: "Points", itemLabel: "title", max: 8, of: cardText }) }),
+      of: sectionHeading({
+        image: f.image({ label: "Photo" }),
+        points: f.list({ label: "Points", itemLabel: "title", max: 8, of: cardText }),
+      }),
     }),
     solutions: f.object({
       label: "Solutions section",
@@ -285,7 +306,12 @@ export const homePage = defineSingleton({
       of: sectionHeading(),
     }),
     insights: f.object({ label: "Latest articles heading", group: "Blog & FAQ", help: "Articles come from Blog.", of: sectionHeading() }),
-    faq: f.object({ label: "FAQ heading", group: "Blog & FAQ", help: "Questions come from FAQs (Page = Home).", of: sectionHeading() }),
+    faq: f.object({
+      label: "FAQ heading",
+      group: "Blog & FAQ",
+      help: "Questions come from FAQs (Page = Home).",
+      of: sectionHeading({ image: f.image({ label: "Artwork", help: "Tall picture beside the questions (large screens)." }) }),
+    }),
     cta: f.object({
       label: "Call to action banner",
       group: "Call to action",

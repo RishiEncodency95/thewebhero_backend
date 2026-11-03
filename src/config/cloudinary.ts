@@ -15,7 +15,7 @@ if (isCloudinaryConfigured) {
   });
   logger.info("Cloudinary configured");
 } else {
-  logger.warn("Cloudinary not configured - media uploads are stored on local disk (./uploads).");
+  logger.warn("Cloudinary not configured - image uploads are disabled until CLOUDINARY_* is set.");
 }
 
 export { cloudinary };

@@ -5,6 +5,7 @@ import path from "path";
 import { cloudinary, isCloudinaryConfigured } from "../../config/cloudinary";
 import { env } from "../../config/env";
 import { logger } from "../../config/logger";
+import { ApiError } from "../../common/utils/ApiError";
 
 export interface StoredFile {
   url: string;
@@ -12,7 +13,7 @@ export interface StoredFile {
   resourceType: string;
 }
 
-/** Where uploaded files live. Cloudinary when configured, otherwise local disk. */
+/** Where uploaded files live: always Cloudinary. Local disk is only used by the test suite. */
 export interface MediaStorage {
   readonly name: "cloudinary" | "local";
   put(file: Express.Multer.File, folder: string): Promise<StoredFile>;
@@ -53,6 +54,9 @@ const EXTENSIONS: Record<string, string> = {
   "image/webp": ".webp",
   "image/gif": ".gif",
   "image/svg+xml": ".svg",
+  "image/avif": ".avif",
+  "video/mp4": ".mp4",
+  "video/webm": ".webm",
   "application/pdf": ".pdf",
 };
 
@@ -74,4 +78,19 @@ const localStorage: MediaStorage = {
   },
 };
 
-export const storage: MediaStorage = isCloudinaryConfigured ? cloudinaryStorage : localStorage;
+// Uploads never fall back to the server's disk: a redeploy or a deleted folder
+// would lose them. Without Cloudinary, uploading fails with a clear message.
+const unconfiguredStorage: MediaStorage = {
+  name: "cloudinary",
+  async put() {
+    throw new ApiError(503, "Image uploads need Cloudinary. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET on the server.");
+  },
+  async remove(publicId) {
+    logger.warn(`Cloudinary not configured; could not delete ${publicId}`);
+  },
+};
+
+/** True only in the automated tests, which run without Cloudinary. */
+export const usesLocalDisk = !isCloudinaryConfigured && env.NODE_ENV === "test";
+
+export const storage: MediaStorage = isCloudinaryConfigured ? cloudinaryStorage : usesLocalDisk ? localStorage : unconfiguredStorage;

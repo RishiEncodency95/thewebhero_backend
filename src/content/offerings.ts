@@ -14,10 +14,13 @@ const catalogueBasics = (titleKey: "title" | "name") => ({
   category: f.text({ label: "Category name", max: 120, group: B }),
   categorySlug: f.text({ label: "Category slug", max: 120, group: B, help: "Must match a Category's slug." }),
   iconName: f.icon({ label: "Icon", group: B, help: "Lucide icon name, e.g. Code2" }),
-  heroImage: f.image({ label: "Hero image", group: B }),
+  heroImage: f.image({ label: "Hero image", group: B, help: "Shown at the top of the page and when the page is shared." }),
   shortDescription: f.textarea({ label: "Short description", required: true, max: 400, rows: 2, group: B }),
   description: f.textarea({ label: "Full description", max: 5000, rows: 5, group: C }),
 });
+
+/** Second picture on solution, technology and industry pages (overview section). */
+const overviewImage = f.image({ label: "Overview image", group: B, help: "Shown next to the overview text further down the page." });
 
 const summaryFields = (titleKey: string) => [titleKey, "slug", "category", "categorySlug", "iconName", "shortDescription", "heroImage"];
 
@@ -76,6 +79,7 @@ export const solutions = defineContentModule({
   sitemap: { priority: 0.9, changefreq: "weekly" },
   fields: {
     ...catalogueBasics("title"),
+    overviewImage,
     challenges: f.list({ label: "Challenges solved", group: C, itemLabel: "title", of: titleDescriptionItem() }),
     capabilities: f.list({ label: "Capabilities", group: C, itemLabel: "title", of: { ...titleDescriptionItem(), iconName: f.icon("Icon") } }),
     audience: f.list({ label: "Who it's for", group: C, itemLabel: "title", of: titleDescriptionItem() }),
@@ -115,6 +119,7 @@ export const technologies = defineContentModule({
   sitemap: { priority: 0.8, changefreq: "weekly" },
   fields: {
     ...catalogueBasics("name"),
+    overviewImage,
     keyword: f.text({ label: "Primary keyword", max: 120, group: B, help: 'Drives the H1 and title, e.g. "React Development".' }),
     role: f.text({ label: "Role hired", max: 120, group: B, help: 'e.g. "React developers"' }),
     overview: f.textarea({ label: "Overview", max: 5000, rows: 5, group: C }),
@@ -156,6 +161,7 @@ export const industries = defineContentModule({
   sitemap: { priority: 0.8, changefreq: "weekly" },
   fields: {
     ...catalogueBasics("name"),
+    overviewImage,
     keyword: f.text({ label: "Primary keyword", max: 120, group: B, help: 'e.g. "Healthcare Software Development"' }),
     overview: f.textarea({ label: "Overview", max: 5000, rows: 5, group: C }),
     challenges: f.list({
